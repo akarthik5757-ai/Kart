@@ -1,0 +1,40 @@
+workflows:
+  anbu-travels-android:
+    name: Anbu Travels Android APK
+    max_build_duration: 60
+    instance_type: linux_x2
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Check Android project structure
+        script: |
+          set -e
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f gradle.properties
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/anbutravels/app/MainActivity.kt
+
+      - name: Install Android SDK packages
+        script: |
+          set -e
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install Gradle 8.9
+        script: |
+          set -e
+          curl -fL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+
+      - name: Build debug APK
+        script: |
+          set -e
+          /tmp/gradle-8.9/bin/gradle assembleDebug --stacktrace --no-daemon
+
+    artifacts:
+      - app/build/outputs/apk/debug/app-debug.apk

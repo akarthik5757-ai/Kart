@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'customer';
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'Pending'
+        && request.resource.data.keys().hasAll([
+          'userId', 'customerName', 'phone', 'pickup', 'drop',
+          'dateTime', 'tripType', 'vehicle', 'estimatedFare', 'status', 'createdAt'
+        ]);
+      allow read: if signedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == 'Pending'
+          && request.resource.data.status == 'Cancelled'
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+      allow delete: if isAdmin();
+    }
+  }
+}
